@@ -47,8 +47,8 @@ numOPs n = PS.coeffs ps !! (2*fromIntegral n)
     (GF ps) = zToGF $ braceletCI >< (set `ofSizeExactly` (n+2) * set `ofSizeExactly` (n-2))
 
 main = do
-  [bound] <- getArgs
-  forM_ [1..read bound] $ \n ->
+  [low,high] <- getArgs
+  forM_ [read low .. read high] $ \n ->
     printf "%2d %d\n" (2*n) (numOPs n)
 
 {-
@@ -78,5 +78,10 @@ hippasus :: ~/research/ortho-polys » time ./BraceletCI
 44 20012141478
 ^C
 ./BraceletCI  205.87s user 1.18s system 100% cpu 3:26.95 total
+
+Some additional values:
+
+46 75473438326
+48 285268537424
 
 -}
