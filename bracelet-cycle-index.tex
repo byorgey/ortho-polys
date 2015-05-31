@@ -1,0 +1,140 @@
+% -*- compile-command: "pdflatex bracelet-cycle-index.tex" -*-
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{xspace}
+
+\newcommand{\ie}{\emph{i.e.}\ }
+
+\renewcommand{\S}{\mathcal{S}}
+
+\DeclareMathOperator{\Fix}{Fix}
+
+\begin{document}
+
+\section{Preliminaries}
+\label{sec:preliminaries}
+
+Let $\S_n$ denote the symmetric group of order $n$, that is, the group
+of permutations on $\{1, \dots, n\}$ under composition.  It is a
+well-known fact that every permutation $\sigma \in \S_n$ can be
+uniquely decomposed as a product of cycles. The \emph{cycle type} of
+$\sigma$ is the sequence of natural numbers $\sigma_1, \sigma_2,
+\sigma_3, \dots$ where $\sigma_i$ is the number of $i$-cycles in the
+cycle decomposition of $\sigma$.  For example, the permutation
+$(132)(45)(78)(6)$ has cycle type $1,2,1,0,0,0,\dots$
+
+The \emph{exponential generating function} (egf) associated to a
+combinatorial species $F$ is defined by \[ F(x) = \sum_{n \geq 0}
+|F[n]| \frac{x^n}{n!}. \] That is, the coefficient of $x^n/n!$ is the
+number of distinct $F$-structures on $n$ labels. For example, for $n
+\geq 1$ there are $(n-1)!$ distinct labelled cycles (necklaces), so
+the egf for the species of cycles is \[ C(x) = \sum_{n \geq 1} (n-1)!
+\frac{x^n}{n!} = \sum_{n \geq 1} \frac{x^n}{n}. \]
+
+The \emph{ordinary generating function} (ogf) associated to a species
+$F$ is defined by \[ \tilde F(x) = \sum_{n \geq 0} |F[n]/\mathord{\sim}| x^n \]
+where $\sim$ is the equivalence relation on $F$-structures induced by
+permuting the labels.  That is, $\tilde F$ counts \emph{equivalence
+  classes} of $F$-structures up to relabelling.  For example, there is
+only one equivalence class of cycles for each $n$ (any two cycles
+``have the same shape'' and are thus related by some relabelling), so
+the ogf for the species of cycles is \[ \tilde C(x) = \sum_{n \geq 1}
+x^n = \frac{x}{1-x}. \]
+
+Egfs are quite natural, and the mapping from species to their
+associated egf is a homomorphism that preserves many operations such
+as sum, product, composition, and derivative.  ogfs, it turns out, are
+not quite as nice; the mapping from species to ogfs preserves sum and
+product but does not, in general, preserve composition or derivative.
+In some sense ogfs throw away too much information.  Thus it is not
+possible to compositionally determine the ogf for a species defined in
+terms of these operations---at least not directly.  The solution is to
+turn to a richer class of generating functions that do preserve the
+necessary information.
+
+\section{Cycle index series}
+\label{sec:cycle-inde}
+
+For a species $F$ and a permutation $\sigma \in \S_n$, let $\Fix
+F[\sigma]$ denote the number of $F$-structures that are fixed by the
+action of $\sigma$, that is, \[ \Fix F[\sigma] = \#\{ f \in F[n] \mid
+F[\sigma] f = f \}. \] The \emph{cycle index series} of a
+combinatorial species $F$ is a power series in an infinite set of
+variables $x_1, x_2, x_3, \dots$ defined by \[ Z_F(x_1, x_2, x_3,
+\dots) = \sum_{n \geq 0} \frac{1}{n!}  \sum_{\sigma \in \S_n} \Fix
+F[\sigma] x_1^{\sigma_1} x_2^{\sigma_2} \dots \] We also sometimes
+write $x^\sigma$ as an abbreviation for $x_1^{\sigma_1} x_2^{\sigma_2}
+x_3^{\sigma_3} \dots$. As a simple example, consider the species of
+lists, \ie linear orderings.  For each $n$, the identity permutation
+(with cycle type $n,0,0,\dots$) fixes all $n!$ lists of length $n$,
+whereas all other permutations do not fix any lists.  Therefore \[
+Z_L(x_1, x_2, x_3, \dots) = \sum_{n \geq 0} \frac{1}{n!}  n! x_1^n =
+\sum_{n \geq 0} x_1^n = \frac{1}{1 - x_1}. \]
+
+Cycle index series are linked to both egfs and ogfs by the identities
+\begin{gather}
+  F(x) = Z_F(x,0,0,\dots) \label{eq:ci-egf} \\
+  \tilde F(x) = Z_F(x,x^2,x^3, \dots) \label{eq:ci-ogf}
+\end{gather}
+To show \eqref{eq:ci-egf}, note that setting all $x_i$ to $0$ other
+than $x_1$ means that the only terms that survive are terms with only
+$x_1$ raised to some power.  These correspond to permutations with
+only $1$-cycles, that is, identity permutations.  Identity
+permutations fix \emph{all} $F$-structures of a given size, so we have
+\begin{align*}
+  Z_F(x,0,0,\dots) &= \sum_{n \geq 0} \frac{1}{n!} \Fix F[\mathit{id}]
+  x^n \\
+  &= \sum_{n \geq 0} |F[n]| \frac{x^n}{n!}.
+\end{align*}
+
+The proof of \eqref{eq:ci-ogf} depends on Burnside's Lemma.  Note that
+for any permutation $\sigma \in \S_n$ with cycle type
+$\sigma_1,\sigma_2,\sigma_3,\dots$ we have $\sigma_1 + 2\sigma_2 +
+3\sigma_3 + \dots = n$.  Thus:
+\begin{align*}
+  Z_F(x,x^2,x^3,\dots) &= \sum_{n \geq 0} \frac{1}{n!} \sum_{\sigma
+    \in \S_n} \Fix F[\sigma]
+  x^{\sigma_1}x^{2\sigma_2}x^{3\sigma_3}\dots \\
+  &= \sum_{n \geq 0} \frac{1}{n!} \sum_{\sigma \in \S_n} \Fix
+  F[\sigma] x^n \\
+  &= \sum_{n \geq 0} |F[n]/\mathord{\sim}| x^n
+\end{align*}
+where the final step is an application of Burnside's Lemma.
+
+Crucially, the mapping from species to cycle index series is again a
+homomorphism for many of the operations we care about, including
+composition.  So one can compute with cycle index series and project
+down to ogfs at the end.
+
+\section{Cycle index series for bracelets}
+\label{sec:bracelet-cycle-index}
+
+We now work out the cycle index series for the species $B$ of
+bracelets, where a bracelet structure is construed as a sequence of
+(uniquely labelled) beads, considered equivalent up to rotation and
+reflection.
+
+Note first that bracelets of size $n$ have the dihedral group $D_{2n}$
+as their symmetry group.  That is, every $n$-bracelet is fixed by the
+action of any element of $D_{2n}$, and no bracelets are fixed by the
+action of any other permutation.  There is a single $n$-bracelet for
+each $n \in \{1,2\}$ (by convention there are no $0$-bracelets, just
+as there are no $0$-cycles/necklaces), and for $n \geq 3$ there are
+$(n-1)!/2$ labelled bracelets.
+
+Thus, the cycle index series is given by
+\begin{align*}
+Z_B(x_1, x_2, x_3, \dots)
+&= x_1 + \frac{1}{2}(x_1^2 + x_2) + \sum_{n \geq 3} \frac{1}{n!}
+\sum_{\sigma \in D_{2n}} \frac{(n-1)!}{2} x^\sigma \\
+&= x_1 + \frac{1}{2}(x_1^2 + x_2) + \frac{1}{2} \sum_{n \geq 3}
+\sum_{\sigma \in D_{2n}} x^\sigma.
+\end{align*}
+Our remaining task is thus to compute $\sum_{\sigma \in D_{2n}}
+x^\sigma$, that is, to compute the cycle types of elements of
+$D_{2n}$.
+
+
+
+\end{document}
