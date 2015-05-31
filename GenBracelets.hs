@@ -117,6 +117,8 @@ genBracelets k n = execWriter (go 1 1 0 0 0 False emptyPre)
        -> Writer [Bracelet] ()
     go t p r u v rs pre
       | t > n = when (not rs' && (n `mod` p == 0)) $ tell [getPre pre]
+                -- can generate aperiodic bracelets by changing
+                -- (n `mod` p == 0)  to  (p == n)
       | otherwise = do
           let a' = pre ! (t-p)
               pre' = addLast a' pre
