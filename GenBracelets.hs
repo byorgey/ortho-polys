@@ -1,5 +1,6 @@
-{-# LANGUAGE RankNTypes #-}
-
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
 
 import           Control.Monad              (forM_, when)
 import           Control.Monad.ST
@@ -7,6 +8,7 @@ import           Control.Monad.Trans        (lift)
 import           Control.Monad.Trans.Writer
 -- import           Data.Array.Base            (unsafeRead, unsafeWrite)
 import           Data.Array.ST
+import qualified Data.IntMap.Strict         as IM
 import           System.Environment         (getArgs)
 
 type PreNecklace = [Int]
@@ -84,18 +86,25 @@ data Pre = Pre !Int (Maybe Int) PreNecklace
 emptyPre :: Pre
 emptyPre = Pre 0 Nothing []
 
-addLast :: Int -> Pre -> Pre
-addLast a (Pre 0 _ []) = Pre 1 (Just a) [a]
-addLast a (Pre t a1 as) = Pre (t+1) a1 (a:as)
+class Snocable p a where
+  (|>) :: p -> a -> p
 
-(!) :: Pre -> Int -> Int
-_ ! 0 = 0
-(Pre _ (Just a1) _) ! 1 = a1
-(Pre t _ as) ! i = as !! (t-i)
-  -- as stores  a_t .. a_1.
-  -- a_1 is the last element, i.e. with index t-1.
-  -- a_2 has index t-2.
-  -- In general, a_i has index t-i.
+instance Snocable Pre Int where
+  (Pre 0 _ []) |> a  = Pre 1 (Just a) [a]
+  (Pre t a1 as) |> a = Pre (t+1) a1 (a:as)
+
+-- 1-based indexing
+class Indexable p where
+  (!) :: p -> Int -> Int
+
+instance Indexable Pre where
+  _ ! 0 = 0
+  (Pre _ (Just a1) _) ! 1 = a1
+  (Pre t _ as) ! i = as !! (t-i)
+    -- as stores  a_t .. a_1.
+    -- a_1 is the last element, i.e. with index t-1.
+    -- a_2 has index t-2.
+    -- In general, a_i has index t-i.
 
 getPre :: Pre -> PreNecklace
 getPre (Pre _ _ as) = reverse as
@@ -121,7 +130,7 @@ genBracelets k n = execWriter (go 1 1 0 0 0 False emptyPre)
                 -- (n `mod` p == 0)  to  (p == n)
       | otherwise = do
           let a' = pre ! (t-p)
-              pre' = addLast a' pre
+              pre' = pre |> a'
               v' | a' == (pre' ! 1)  = v + 1
                  | otherwise = 0
               u' | u == t - 1 && pre' ! (t-1) == pre' ! 1 = u + 1
@@ -138,12 +147,74 @@ genBracelets k n = execWriter (go 1 1 0 0 0 False emptyPre)
                   | otherwise = u'
           forM_ [a'+1 .. k-1] $ \j ->
             case t of
-              1 -> go (t+1) t r 1 1 rs' (addLast j pre)
-              _ -> go (t+1) t r u'' 0 rs' (addLast j pre)
+              1 -> go (t+1) t r 1 1 rs' (pre |> j)
+              _ -> go (t+1) t r u'' 0 rs' (pre |> j)
       where
         rs' | (t-1 > (n-r) `div` 2 + r) && pre ! (t-1) > pre ! (n-t+2+r) = False
             | (t-1 > (n-r) `div` 2 + r) && pre ! (t-1) < pre ! (n-t+2+r) = True
             | otherwise = rs
+
+----------------------------------------------------------------------
+-- A CAT algorithm for generating all length-n bracelets with a given
+-- fixed content, taken from
+--
+-- S. Karim, J. Sawada, Z. Alamgir, and S. M. Husnine. "Generating
+-- Bracelets with Fixed Content".
+-- http://www.cis.uoguelph.ca/~sawada/papers/fix-brace.pdf
+----------------------------------------------------------------------
+
+-- Run-length encodings.  Stored in *reverse* order for easy access to
+-- the end.
+data RLE a = RLE !Int [(a,Int)]
+
+emptyRLE :: RLE a
+emptyRLE = RLE 0 []
+
+removeLastRLE :: RLE a -> RLE a
+removeLastRLE (RLE _ []) = error "removeLastRLE on []"
+removeLastRLE (RLE n ((a,v):rest))
+  | v > 1     = RLE n ((a,v-1):rest)
+  | otherwise = RLE (n-1) rest
+
+instance Indexable (RLE Int) where
+  (RLE _ []) ! _ = error "Bad index in (!) for RLE"
+  (RLE n ((a,v):rest)) ! i
+    | i <= v = a
+    | otherwise = (RLE (n-1) rest) ! (i-v)
+
+instance Eq a => Snocable (RLE a) a where
+  (RLE _ []) |> a' = RLE 1 [(a',1)]
+  (RLE n rle@((a,v):rest)) |> a'
+    | a == a'   = RLE n ((a,v+1):rest)
+    | otherwise = RLE (n+1) ((a',1):rle)
+
+-- Prenecklaces along with a run-length encoding.
+data Pre' = Pre' Pre (RLE Int)
+
+emptyPre' :: Pre'
+emptyPre' = Pre' emptyPre emptyRLE
+
+instance Indexable Pre' where
+  _ ! 0 = 0
+  (Pre' (Pre len _ _) rle) ! i = rle ! (len - 1 - i)
+
+instance Snocable Pre' Int where
+  (Pre' p rle) |> a = Pre' (p |> a) (rle |> a)
+
+genFixedBracelets :: IM.IntMap Int -> Int -> [Bracelet]
+genFixedBracelets content n = execWriter (go 1 1 0 0 0 False content emptyPre')
+  where
+    go :: Int -> Int -> Int -> Int -> Int -> Bool -> IM.IntMap Int -> Pre'
+       -> Writer [Bracelet] ()
+    go t p r z b rs content pre = undefined
+
+      where
+        rs' | (t-1 > (n-r) `div` 2 + r) && pre ! (t-1) > pre ! (n-t+2+r) = False
+            | (t-1 > (n-r) `div` 2 + r) && pre ! (t-1) < pre ! (n-t+2+r) = True
+            | otherwise = rs
+
+----------------------------------------------------------------------
+----------------------------------------------------------------------
 
 main :: IO ()
 main = do
