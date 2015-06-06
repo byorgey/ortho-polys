@@ -2,6 +2,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 
+import           Debug.Trace
+
+import           Control.Arrow              (first)
 import           Control.Monad              (forM_, when)
 import           Control.Monad.ST
 import           Control.Monad.Trans        (lift)
@@ -110,14 +113,20 @@ getPre :: Pre -> PreNecklace
 getPre (Pre _ _ as) = reverse as
 
 checkRev :: Pre -> Int -> Int
-checkRev (Pre t _ as) i
-  | reverse chunk > chunk = -1
-  | reverse chunk < chunk = 0
+checkRev pre@(Pre t _ _) i
+  | reverse chunk < chunk = -1
+  | reverse chunk > chunk = 0
   | otherwise             = 1
   where
-    chunk = take (t - 2*i) . drop i $ as
+    chunk = slicePre (i+1) (t-i) pre
   -- need to check i+1 .. t-i  against its reverse,
   -- which has indices i .. t-i-1.
+
+-- slicePre i j pre returns  a_i .. a_j.
+slicePre :: Int -> Int -> Pre -> [Int]
+slicePre i j (Pre t _ as) = reverse . take (j - i + 1) . drop (t - j) $ as
+  -- a_i, a_j have indices t-i, t-j respectively.  So first drop t-j.
+  -- Then take t-i - t-j + 1 = j - i + 1.
 
 genBracelets :: Int -> Int -> [Bracelet]
 genBracelets k n = execWriter (go 1 1 0 0 0 False emptyPre)
@@ -165,34 +174,45 @@ genBracelets k n = execWriter (go 1 1 0 0 0 False emptyPre)
 
 -- Run-length encodings.  Stored in *reverse* order for easy access to
 -- the end.
-data RLE a = RLE !Int [(a,Int)]
+data RLE a = RLE !Int !Int [(a,Int)]
+  -- First Int is the total length of the decoded list.
+  -- Second Int is the number of blocks.
 
 emptyRLE :: RLE a
-emptyRLE = RLE 0 []
+emptyRLE = RLE 0 0 []
 
 removeLastRLE :: RLE a -> RLE a
-removeLastRLE (RLE _ []) = error "removeLastRLE on []"
-removeLastRLE (RLE n ((a,v):rest))
-  | v > 1     = RLE n ((a,v-1):rest)
-  | otherwise = RLE (n-1) rest
+removeLastRLE (RLE _ _ []) = error "removeLastRLE on []"
+removeLastRLE (RLE n b ((a,v):rest))
+  | v > 1     = RLE (n-1) b ((a,v-1):rest)
+  | otherwise = RLE (n-1) (b-1) rest
+
+-- Indexing starts at 1 from the end of the list.
+getBlockRLE :: RLE a -> Int -> (a,Int)
+getBlockRLE (RLE n b blocks) ix
+  | 1 <= ix && ix <= b = blocks !! (b - ix)
+  | otherwise = error $ "Bad index (" ++ show ix ++ ") in getBlock for RLE with " ++ show b ++ "blocks."
 
 instance Indexable (RLE Int) where
-  (RLE _ []) ! _ = error "Bad index in (!) for RLE"
-  (RLE n ((a,v):rest)) ! i
+  (RLE _ _ []) ! _ = error "Bad index in (!) for RLE"
+  (RLE n b ((a,v):rest)) ! i
     | i <= v = a
-    | otherwise = (RLE (n-1) rest) ! (i-v)
+    | otherwise = (RLE (n-v) (b-1) rest) ! (i-v)
 
 instance Eq a => Snocable (RLE a) a where
-  (RLE _ []) |> a' = RLE 1 [(a',1)]
-  (RLE n rle@((a,v):rest)) |> a'
-    | a == a'   = RLE n ((a,v+1):rest)
-    | otherwise = RLE (n+1) ((a',1):rle)
+  (RLE _ _ []) |> a' = RLE 1 1 [(a',1)]
+  (RLE n b rle@((a,v):rest)) |> a'
+    | a == a'   = RLE (n+1) b     ((a,v+1):rest)
+    | otherwise = RLE (n+1) (b+1) ((a',1):rle)
 
 -- Prenecklaces along with a run-length encoding.
 data Pre' = Pre' Pre (RLE Int)
 
 emptyPre' :: Pre'
 emptyPre' = Pre' emptyPre emptyRLE
+
+getBlock :: Pre' -> Int -> (Int,Int)
+getBlock (Pre' _ rle) ix = getBlockRLE rle ix
 
 instance Indexable Pre' where
   _ ! 0 = 0
@@ -201,24 +221,74 @@ instance Indexable Pre' where
 instance Snocable Pre' Int where
   (Pre' p rle) |> a = Pre' (p |> a) (rle |> a)
 
-genFixedBracelets :: IM.IntMap Int -> Int -> [Bracelet]
-genFixedBracelets content n = execWriter (go 1 1 0 0 0 False content emptyPre')
+simpleBFC :: Int -> Int -> [(Int,Int)] -> [Bracelet]
+simpleBFC k n content = execWriter (go 1 1 0 content emptyPre)
   where
-    go :: Int -> Int -> Int -> Int -> Int -> Bool -> IM.IntMap Int -> Pre'
-       -> Writer [Bracelet] ()
-    go t p r z b rs content pre = undefined
+    go :: Int -> Int -> Int -> [(Int,Int)] -> Pre -> Writer [Bracelet] ()
+    go t p r con pre@(Pre _ _ as)
+      | t > n = itrace t ('!',t,p,r,con,pre)
+              $ when (take (n - r) as >= reverse (take (n-r) as) && n `mod` p == 0)
+              $ tell [getPre pre]
+      | otherwise = itrace t ('.',t,p,r,con,pre) $ do
+          let a' = pre ! (t-p)
+          forM_ [a' .. (k-1)] $ \j -> itrace t j $ do
+            let (con', nj') = decrease j con
+                pre' = pre |> j
+                c = checkRev2 t pre'
+                p' | j /= a'   = t
+                   | otherwise = p
+            itrace t c $ do
+              when (c == EQ && nj' >= 0) $ go (t+1) p' t con' pre'
+              when (c == GT && nj' >= 0) $ go (t+1) p' r con' pre'
 
+    -- itrace t x v = trace (concat (replicate t "  ") ++ show x) v
+    itrace _ _ v = v
+
+    decrease :: Int -> [(Int,Int)] -> ([(Int,Int)], Int)
+    decrease _ [] = ([], -1)
+    decrease j ((m,cnt):rest)
+      | j == m = ((m,cnt-1):rest, cnt-1)
+      | otherwise = first ((m,cnt):) (decrease j rest)
+
+    checkRev2 t pre = compare at1 a1t
       where
-        rs' | (t-1 > (n-r) `div` 2 + r) && pre ! (t-1) > pre ! (n-t+2+r) = False
-            | (t-1 > (n-r) `div` 2 + r) && pre ! (t-1) < pre ! (n-t+2+r) = True
-            | otherwise = rs
+        a1t = slicePre 1 t pre
+        at1 = reverse a1t
+
+
+-- run array??
+
+-- genFixedBracelets :: Int -> Int -> IM.IntMap -> [Bracelet]
+-- genFixedBracelets k n content = execWriter (go 1 1 0 0 0 False content emptyPre')
+--   where
+--     go :: Int -> Int -> Int -> Int -> Int -> Bool -> IM.IntMap Int -> Pre'
+--        -> Writer [Bracelet] ()
+--     go t p r z b rs content pre
+--       | lastCount == Just (n - t + 1) = do
+--           let (sb1,vb1) = getBlock pre (b+1)
+--               rs'' | (lastCount > 0) && (r+1 /= t) && (sb1 == k-1) && (vb1 > lastCount)
+--                    = True
+--                    | (lastCount > 0) && (r+1 /= t) && (sb1 /= k-1 || vb1 < lastCount)
+--                    = False
+--                    | otherwise = rs'
+--           when (not rs'') $ candidate (if lastCount > runtp then n else p)  -- XXX runtp
+--       | otherwise
+--       = when (IM.lookup 0 content /= n - t + 1) $ do
+--           return ()   -- XXX
+--           -- j := head   -- head = next thing in the linked list.
+
+--       where
+--         rs' | (t-1 > (n-r) `div` 2 + r) && pre ! (t-1) > pre ! (n-t+2+r) = False
+--             | (t-1 > (n-r) `div` 2 + r) && pre ! (t-1) < pre ! (n-t+2+r) = True
+--             | otherwise = rs
+--         lastCount = IM.lookup (k-1) content
 
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------
 
 main :: IO ()
 main = do
-  [k, n] <- getArgs
-  let bs = genBracelets (read k) (read n)
+  [k, n, con] <- getArgs
+  let bs = simpleBFC (read k) (read n) (read con)
   print bs
   print (length bs)
