@@ -255,8 +255,8 @@ simpleBFC k n content = execWriter (go 1 1 0 content emptyPre)
         a1t = slicePre 1 t pre
         at1 = reverse a1t
 
-genFixedBracelets :: Int -> Int -> [(Int,Int)] -> [Bracelet]
-genFixedBracelets k n content = execWriter (go 1 1 0 (IM.fromList content) emptyPre)
+genFixedBracelets :: Int -> [(Int,Int)] -> [Bracelet]
+genFixedBracelets n content = execWriter (go 1 1 0 (IM.fromList content) emptyPre)
   where
     go :: Int -> Int -> Int -> IM.IntMap Int -> Pre -> Writer [Bracelet] ()
     go _ _ _ con _ | IM.keys con == [0] = return ()
@@ -330,7 +330,7 @@ genFixedBracelets k n content = execWriter (go 1 1 0 (IM.fromList content) empty
 
 main :: IO ()
 main = do
-  [k, n, con] <- getArgs
-  let bs = genFixedBracelets (read k) (read n) (read con)
+  [n, con] <- getArgs
+  let bs = genFixedBracelets (read n) (read con)
 --  print bs
   print (length bs)
