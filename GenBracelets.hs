@@ -256,34 +256,42 @@ simpleBFC k n content = execWriter (go 1 1 0 content emptyPre)
         at1 = reverse a1t
 
 genFixedBracelets :: Int -> Int -> [(Int,Int)] -> [Bracelet]
-genFixedBracelets k n content = execWriter (go 1 1 0 content emptyPre)
+genFixedBracelets k n content = execWriter (go 1 1 0 (IM.fromList content) emptyPre)
   where
-    go :: Int -> Int -> Int -> [(Int,Int)] -> Pre -> Writer [Bracelet] ()
-    go _ _ _ [(0,_)] _ = return ()
+    go :: Int -> Int -> Int -> IM.IntMap Int -> Pre -> Writer [Bracelet] ()
+    go _ _ _ con _ | IM.keys con == [0] = return ()
     go t p r con pre@(Pre _ _ as)
       | t > n = itrace t ('!',t,p,r,con,pre)
               $ when (take (n - r) as >= reverse (take (n-r) as) && n `mod` p == 0)
               $ tell [getPre pre]
       | otherwise = itrace t ('.',t,p,r,con,pre) $ do
           let a' = pre ! (t-p)
-          forM_ [a' .. (k-1)] $ \j -> itrace t j $ do
-            let (con', nj') = decrease j con
+          forM_ (dropWhile (< a') $ IM.keys con) $ \j -> itrace t j $ do
+            let con' = decrease j con
                 pre' = pre |> j
                 c = checkRev2 t pre'
                 p' | j /= a'   = t
                    | otherwise = p
             itrace t c $ do
-              when (c == EQ && nj' >= 0) $ go (t+1) p' t con' pre'
-              when (c == GT && nj' >= 0) $ go (t+1) p' r con' pre'
+              when (c == EQ) $ go (t+1) p' t con' pre'
+              when (c == GT) $ go (t+1) p' r con' pre'
 
     -- itrace t x v = trace (concat (replicate t "  ") ++ show x) v
     itrace _ _ v = v
 
-    decrease :: Int -> [(Int,Int)] -> ([(Int,Int)], Int)
-    decrease _ [] = ([], -1)
-    decrease j ((m,cnt):rest)
-      | j == m = ( (if cnt == 1 then rest else (m,cnt-1):rest) , cnt-1)
-      | otherwise = first ((m,cnt):) (decrease j rest)
+    decrease :: Int -> IM.IntMap Int -> IM.IntMap Int
+    decrease j con
+      | IM.null con = con
+      | otherwise   = IM.alter q j con
+      where
+        q (Just 1)   = Nothing
+        q (Just cnt) = Just (cnt-1)
+        q _          = Nothing
+
+    -- decrease _ con = ([], -1)
+    -- decrease j ((m,cnt):rest)
+    --   | j == m = ( (if cnt == 1 then rest else (m,cnt-1):rest) , cnt-1)
+    --   | otherwise = first ((m,cnt):) (decrease j rest)
 
     checkRev2 t pre = compare at1 a1t
       where
