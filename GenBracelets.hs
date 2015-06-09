@@ -247,7 +247,7 @@ simpleBFC k n content = execWriter (go 1 1 0 content emptyPre)
     decrease :: Int -> [(Int,Int)] -> ([(Int,Int)], Int)
     decrease _ [] = ([], -1)
     decrease j ((m,cnt):rest)
-      | j == m = ((m,cnt-1):rest, cnt-1)
+      | j == m = ( (if cnt == 1 then rest else (m,cnt-1):rest) , cnt-1)
       | otherwise = first ((m,cnt):) (decrease j rest)
 
     checkRev2 t pre = compare at1 a1t
