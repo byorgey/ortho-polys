@@ -3,12 +3,14 @@
 {-# LANGUAGE RankNTypes            #-}
 
 import           Debug.Trace
+import           Test.QuickCheck
 
-import           Control.Arrow              (first)
+import           Control.Arrow              (first, (&&&))
 import           Control.Monad              (forM_, when)
 import           Control.Monad.ST
 import           Control.Monad.Trans        (lift)
 import           Control.Monad.Trans.Writer
+import           Data.List                  (group, sort)
 -- import           Data.Array.Base            (unsafeRead, unsafeWrite)
 import           Data.Array.ST
 import qualified Data.IntMap.Strict         as IM
@@ -172,54 +174,7 @@ genBracelets k n = execWriter (go 1 1 0 0 0 False emptyPre)
 -- http://www.cis.uoguelph.ca/~sawada/papers/fix-brace.pdf
 ----------------------------------------------------------------------
 
--- Run-length encodings.  Stored in *reverse* order for easy access to
--- the end.
-data RLE a = RLE !Int !Int [(a,Int)]
-  -- First Int is the total length of the decoded list.
-  -- Second Int is the number of blocks.
-
-emptyRLE :: RLE a
-emptyRLE = RLE 0 0 []
-
-removeLastRLE :: RLE a -> RLE a
-removeLastRLE (RLE _ _ []) = error "removeLastRLE on []"
-removeLastRLE (RLE n b ((a,v):rest))
-  | v > 1     = RLE (n-1) b ((a,v-1):rest)
-  | otherwise = RLE (n-1) (b-1) rest
-
--- Indexing starts at 1 from the end of the list.
-getBlockRLE :: RLE a -> Int -> (a,Int)
-getBlockRLE (RLE n b blocks) ix
-  | 1 <= ix && ix <= b = blocks !! (b - ix)
-  | otherwise = error $ "Bad index (" ++ show ix ++ ") in getBlock for RLE with " ++ show b ++ "blocks."
-
-instance Indexable (RLE Int) where
-  (RLE _ _ []) ! _ = error "Bad index in (!) for RLE"
-  (RLE n b ((a,v):rest)) ! i
-    | i <= v = a
-    | otherwise = (RLE (n-v) (b-1) rest) ! (i-v)
-
-instance Eq a => Snocable (RLE a) a where
-  (RLE _ _ []) |> a' = RLE 1 1 [(a',1)]
-  (RLE n b rle@((a,v):rest)) |> a'
-    | a == a'   = RLE (n+1) b     ((a,v+1):rest)
-    | otherwise = RLE (n+1) (b+1) ((a',1):rle)
-
--- Prenecklaces along with a run-length encoding.
-data Pre' = Pre' Pre (RLE Int)
-
-emptyPre' :: Pre'
-emptyPre' = Pre' emptyPre emptyRLE
-
-getBlock :: Pre' -> Int -> (Int,Int)
-getBlock (Pre' _ rle) ix = getBlockRLE rle ix
-
-instance Indexable Pre' where
-  _ ! 0 = 0
-  (Pre' (Pre len _ _) rle) ! i = rle ! (len - 1 - i)
-
-instance Snocable Pre' Int where
-  (Pre' p rle) |> a = Pre' (p |> a) (rle |> a)
+-- First, a simple, slowish version.
 
 simpleBFC :: Int -> Int -> [(Int,Int)] -> [Bracelet]
 simpleBFC k n content = execWriter (go 1 1 0 content emptyPre)
@@ -255,15 +210,96 @@ simpleBFC k n content = execWriter (go 1 1 0 content emptyPre)
         a1t = slicePre 1 t pre
         at1 = reverse a1t
 
+--------------------------------------------------
+-- Some tools.
+
+-- Run-length encodings.  Stored in *reverse* order for easy access to
+-- the end.
+data RLE a = RLE !Int !Int [(a,Int)]
+  deriving (Show)
+  -- First Int is the total length of the decoded list.
+  -- Second Int is the number of blocks.
+
+emptyRLE :: RLE a
+emptyRLE = RLE 0 0 []
+
+removeLastRLE :: RLE a -> RLE a
+removeLastRLE (RLE _ _ []) = error "removeLastRLE on []"
+removeLastRLE (RLE n b ((a,v):rest))
+  | v > 1     = RLE (n-1) b ((a,v-1):rest)
+  | otherwise = RLE (n-1) (b-1) rest
+
+-- Indexing starts at 1 from the end of the list.
+getBlockRLE :: RLE a -> Int -> (a,Int)
+getBlockRLE (RLE n b blocks) ix
+  | 1 <= ix && ix <= b = blocks !! (b - ix)
+  | otherwise = error $ "Bad index (" ++ show ix ++ ") in getBlock for RLE with " ++ show b ++ "blocks."
+
+compareRLE :: Ord a => [(a,Int)] -> [(a,Int)] -> Ordering
+compareRLE [] [] = EQ
+compareRLE [] _  = LT
+compareRLE _ []  = GT
+compareRLE ((a1,n1):rle1) ((a2,n2):rle2)
+  | (a1,n1) == (a2,n2) = compareRLE rle1 rle2
+  | a1 < a2 = LT
+  | a1 > a2 = GT
+  | (n1 < n2 && (null rle1 || fst (head rle1) < a2)) || (n1 > n2 && not (null rle2) && a1 < fst (head rle2)) = LT
+  | otherwise = GT
+
+runLengthEncode :: Eq a => [a] -> [(a,Int)]
+runLengthEncode = map (head &&& length) . group
+
+prop_compareRLE :: [Int] -> [Int] -> Bool
+prop_compareRLE xs ys = compare xs ys == compareRLE (runLengthEncode xs) (runLengthEncode ys)
+
+instance Indexable (RLE Int) where
+  (RLE _ _ []) ! _ = error "Bad index in (!) for RLE"
+  (RLE n b ((a,v):rest)) ! i
+    | i <= v = a
+    | otherwise = (RLE (n-v) (b-1) rest) ! (i-v)
+
+instance Eq a => Snocable (RLE a) a where
+  (RLE _ _ []) |> a' = RLE 1 1 [(a',1)]
+  (RLE n b rle@((a,v):rest)) |> a'
+    | a == a'   = RLE (n+1) b     ((a,v+1):rest)
+    | otherwise = RLE (n+1) (b+1) ((a',1):rle)
+
+-- Prenecklaces along with a run-length encoding.
+data Pre' = Pre' Pre (RLE Int)
+  deriving Show
+
+emptyPre' :: Pre'
+emptyPre' = Pre' emptyPre emptyRLE
+
+getPre' :: Pre' -> PreNecklace
+getPre' (Pre' pre _) = getPre pre
+
+getBlock :: Pre' -> Int -> (Int,Int)
+getBlock (Pre' _ rle) ix = getBlockRLE rle ix
+
+instance Indexable Pre' where
+  _ ! 0 = 0
+  (Pre' (Pre len _ _) rle) ! i = rle ! (len - i + 1)
+
+instance Snocable Pre' Int where
+  (Pre' p rle) |> a = Pre' (p |> a) (rle |> a)
+
+----------------------------------------------------------------------
+-- An optimized version, incrementally optimized from the simple
+-- version, making sure at each step that it is still correct and also
+-- faster.
+
 genFixedBracelets :: Int -> [(Int,Int)] -> [Bracelet]
-genFixedBracelets n content = execWriter (go 1 1 0 (IM.fromList content) emptyPre)
+genFixedBracelets n [(0,k)] | k >= n = [replicate k 0]
+                            | otherwise = []
+genFixedBracelets n content = execWriter (go 1 1 0 (IM.fromList content) emptyPre')
   where
-    go :: Int -> Int -> Int -> IM.IntMap Int -> Pre -> Writer [Bracelet] ()
+    go :: Int -> Int -> Int -> IM.IntMap Int -> Pre' -> Writer [Bracelet] ()
     go _ _ _ con _ | IM.keys con == [0] = return ()
-    go t p r con pre@(Pre _ _ as)
+    go t p r con pre@(Pre' (Pre _ _ as) _)
       | t > n = itrace t ('!',t,p,r,con,pre)
               $ when (take (n - r) as >= reverse (take (n-r) as) && n `mod` p == 0)
-              $ tell [getPre pre]
+              $ tell [getPre' pre]
       | otherwise = itrace t ('.',t,p,r,con,pre) $ do
           let a' = pre ! (t-p)
           forM_ (dropWhile (< a') $ IM.keys con) $ \j -> itrace t j $ do
@@ -288,17 +324,22 @@ genFixedBracelets n content = execWriter (go 1 1 0 (IM.fromList content) emptyPr
         q (Just cnt) = Just (cnt-1)
         q _          = Nothing
 
-    -- decrease _ con = ([], -1)
-    -- decrease j ((m,cnt):rest)
-    --   | j == m = ( (if cnt == 1 then rest else (m,cnt-1):rest) , cnt-1)
-    --   | otherwise = first ((m,cnt):) (decrease j rest)
+    checkRev2 _ (Pre' _ (RLE _ _ rle)) = compareRLE rle (reverse rle)
 
-    checkRev2 t pre = compare at1 a1t
-      where
-        a1t = slicePre 1 t pre
-        at1 = reverse a1t
+    -- checkRev2 t pre = compare at1 a1t
+    --   where
+    --     a1t = slicePre 1 t pre
+    --     at1 = reverse a1t
 
--- run array??
+prop_genFixed :: Positive Int -> [Int] -> Property
+prop_genFixed (Positive n) con = not (null con) ==> genFixedBracelets n con' == simpleBFC k n con'
+  where
+    con' = runLengthEncode . sort $ con
+    k    = succ . maximum . map fst $ con'
+
+----------------------------------------------------------------------
+-- An aborted attempt to transcribe the C algorithm directly from the
+-- paper.
 
 -- genFixedBracelets :: Int -> Int -> IM.IntMap -> [Bracelet]
 -- genFixedBracelets k n content = execWriter (go 1 1 0 0 0 False content emptyPre')
