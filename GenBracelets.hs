@@ -288,6 +288,10 @@ instance Snocable Pre' Int where
 -- An optimized version, incrementally optimized from the simple
 -- version, making sure at each step that it is still correct and also
 -- faster.
+--
+-- Note, I tried the optimization where the comparison of a_r+1 .. a_n
+-- with its reversal is done incrementally via a variable RS passed
+-- along recursively, but it made the generation slower in practice.
 
 genFixedBracelets :: Int -> [(Int,Int)] -> [Bracelet]
 genFixedBracelets n [(0,k)] | k >= n = [replicate k 0]
