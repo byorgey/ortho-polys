@@ -330,11 +330,6 @@ genFixedBracelets n content = execWriter (go 1 1 0 (IM.fromList content) emptyPr
 
     checkRev2 _ (Pre' _ (RLE _ _ rle)) = compareRLE rle (reverse rle)
 
-    -- checkRev2 t pre = compare at1 a1t
-    --   where
-    --     a1t = slicePre 1 t pre
-    --     at1 = reverse a1t
-
 prop_genFixed :: Positive Int -> [Int] -> Property
 prop_genFixed (Positive n) con = not (null con) ==> genFixedBracelets n con' == simpleBFC k n con'
   where
