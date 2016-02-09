@@ -1,0 +1,16 @@
+Some ideas for how to draw OPs.
+
+- Physics-based model.  Angles are rigid, edges are springs that want
+  to be 1 unit long?  Find crossings etc. and force things apart, in
+  the right direction to get uncrossed.
+
+- Start with valid drawing based on halving etc., then relax subject
+  to no crossings.
+
+- Use a SAT solver---encode all the relevant constraints, then let it
+  find a satisfying assignment.  Or use ILP solver---since we don't
+  just want *satisfying* assignment but we want an optimal one.  Can
+  probably find a way to express all constraints in terms of
+  inequalities.
+
+- Something else?  Is there an analytic solution?
