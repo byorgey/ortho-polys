@@ -14,3 +14,34 @@ Some ideas for how to draw OPs.
   inequalities.
 
 - Something else?  Is there an analytic solution?
+
+
+Project description written for Faisal:
+
+Drawing Orthogonal Polygons
+
+An orthogonal polygon is one where all the angles are right angles.
+Based on some previous work of a colleague and myself, we know how to
+generate all possible orthogonal polygons.  However, they are
+generated in a format that just tells you a list of right and left
+turns, like RRLLRLLLLLLL.  The goal is to take such descriptions and
+turn them into "nice" drawings.  This is not as trivial as you might
+think.  The problem is that we have to pick a length for each edge so
+that the polygon never crosses itself.  I have several ideas, but not
+enough time to try them out.  If we find a drawing algorithm that
+works well, the ultimate goal would be to be able to make
+images/posters with e.g. all 280 of the orthogonal polygons with 16
+edges.
+
+It is a little hard to describe this via email; if you want to discuss
+it I would be happy to draw you lots of pictures on my blackboard to
+give you an idea what this is really about.
+
+Obviously this is not "practical" in any real sense; the motivation is
+mostly that it is a fun problem and should result in some pretty
+pictures.  However, it does relate to graph drawing which is a big
+area with important applications; we might learn something interesting
+which would transfer to that domain.
+
+Note this could be implemented in whatever programming language you
+want.
