@@ -1,3 +1,9 @@
+-- To do:
+--
+--   1. Add diagrams code to draw output of solver
+--   2. Add edge non-crossing constraints
+--   3. Draw all ortho polys of a given size
+
 import Data.SBV
 import Data.List.Split (chunksOf)
 
