@@ -45,3 +45,12 @@ which would transfer to that domain.
 
 Note this could be implemented in whatever programming language you
 want.
+
+* Expressing constraints as linear inequalities?
+
+  - Have x and y coordinates for each corner; restricted to integers.
+  - Inequality for adjacent pairs, e.g.  x3 + 1 <= x4  and so on.
+    This enforces that each edge has positive length.
+  - How to enforce no crossings though?  "Two edges do not cross":
+
+    
