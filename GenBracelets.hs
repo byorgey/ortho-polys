@@ -2,6 +2,8 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 
+module GenBracelets where
+
 import           Debug.Trace
 import           Test.QuickCheck
 
@@ -368,9 +370,9 @@ prop_genFixed (Positive n) con = not (null con) ==> genFixedBracelets n con' == 
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------
 
-main :: IO ()
-main = do
-  [n, con] <- getArgs
-  let bs = genFixedBracelets (read n) (read con)
---  print bs
-  print (length bs)
+-- main :: IO ()
+-- main = do
+--   [n, con] <- getArgs
+--   let bs = genFixedBracelets (read n) (read con)
+-- --  print bs
+--   print (length bs)

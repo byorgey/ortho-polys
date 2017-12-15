@@ -16,3 +16,4 @@ TAGS
 /.cabal-sandbox/
 *.aux
 *.log
+*.png
