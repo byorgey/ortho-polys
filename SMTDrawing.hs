@@ -1,11 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections    #-}
 
--- To do:
---
---   1. Add diagrams code to draw output of solver
---   2. Add edge non-crossing constraints
---   3. Draw all ortho polys of a given size
+module SMTDrawing where
 
 import Data.Maybe
 
@@ -134,29 +130,27 @@ extractPoints = map mkP2 . chunksOf 2 . init . map (getInteger . snd)
     mkP2 [x,y] = fromIntegral x ^& fromIntegral y
 
 ------------------------------------------------------------
--- Drawing
+-- Drawing & generation
 
 drawPoly :: OptimizeResult -> Trail V2 Double
 drawPoly = closeTrail . fromVertices . fromMaybe [] . extractPoly
-
-------------------------------------------------------------
--- Generating bracelets
 
 -- Generate all polygons with 2n vertices
 allPolys :: Int -> [[Turn]]
 allPolys 2 = [[R,R,R,R]]
 allPolys n = map (map toEnum) $ genFixedBracelets (2*n) [(0,n-2), (1,n+2)]
 
-main = do
-  ores <- mapM (optimize Lexicographic . orthoPolyDrawing) (allPolys 8)
+drawAllPolysGrid :: Int -> IO (Diagram B)
+drawAllPolysGrid n = do
+  ores <- mapM (optimize Lexicographic . orthoPolyDrawing) (allPolys n)
   let polys = map (centerXY . strokeTrail . drawPoly) ores
-      n     = ceiling (sqrt (fromIntegral (length polys)))
+      side  = ceiling (sqrt (fromIntegral (length polys)))
       w     = maximum . map width  $ polys
       h     = maximum . map height $ polys
-  defaultMain
+  return
     . frame 1
     . lw thin
     .      vcat' (with & catMethod .~ Distrib & sep .~ (h+1))
     . map (hcat' (with & catMethod .~ Distrib & sep .~ (w+1)))
-    . chunksOf n
+    . chunksOf side
     $ polys
