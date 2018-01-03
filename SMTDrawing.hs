@@ -9,6 +9,7 @@ import Data.SBV
 import Data.SBV.Internals (SMTModel(..), CW(..), CWVal(..))
 import Data.List.Split (chunksOf)
 
+import Control.Lens (both, (^..))
 import Diagrams.Prelude hiding (E, (.>), (|||), turn)
 import Diagrams.Backend.Rasterific.CmdLine
 
@@ -143,10 +144,13 @@ allPolys n = map (map toEnum) $ genFixedBracelets (2*n) [(0,n-2), (1,n+2)]
 drawAllPolysGrid :: Int -> IO (Diagram B)
 drawAllPolysGrid n = do
   ores <- mapM (optimize Lexicographic . orthoPolyDrawing) (allPolys n)
-  let polys = map (centerXY . strokeTrail . drawPoly) ores
+  let polyTrails = map drawPoly ores
+      polys = map (centerXY . strokeTrail) polyTrails
       side  = ceiling (sqrt (fromIntegral (length polys)))
       w     = maximum . map width  $ polys
       h     = maximum . map height $ polys
+      disp  = unlines . map (unwords . map (show . (round :: Double -> Int)) . concatMap ((^.. both) . unp2) . trailVertices . (`at` origin)) $ polyTrails
+  putStr disp
   return
     . frame 1
     . lw thin
