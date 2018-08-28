@@ -3,17 +3,19 @@
 
 module SMTDrawing where
 
-import Data.Maybe
+import           Data.Maybe
 
-import Data.SBV
-import Data.SBV.Internals (SMTModel(..), CW(..), CWVal(..))
-import Data.List.Split (chunksOf)
+import           Data.List.Split                     (chunksOf)
+import           Data.SBV
+import           Data.SBV.Internals                  (CW (..), CWVal (..),
+                                                      SMTModel (..))
 
-import Control.Lens (both, (^..))
-import Diagrams.Prelude hiding (E, (.>), (|||), turn)
-import Diagrams.Backend.Rasterific.CmdLine
+import           Control.Lens                        (both, (^..))
+import           Diagrams.Backend.Rasterific.CmdLine
+import           Diagrams.Prelude                    hiding (E, turn, (.>),
+                                                      (|||))
 
-import GenBracelets
+import           GenBracelets
 
 ------------------------------------------------------------
 -- Data types
@@ -96,8 +98,8 @@ genCrossingConstraints (e:es) = do
   mapM_ genCrossingConstraint edgePairs
 
 skipPairs :: [a] -> [(a,a)]
-skipPairs [] = []
-skipPairs [_] = []
+skipPairs []       = []
+skipPairs [_]      = []
 skipPairs (a:b:cs) = map (a,) cs ++ skipPairs (b:cs)
 
 -- Constrain two edges to be completely disjoint.  Note that in
@@ -158,3 +160,12 @@ drawAllPolysGrid n = do
     . map (hcat' (with & catMethod .~ Distrib & sep .~ (w+1)))
     . chunksOf side
     $ polys
+
+drawOnePoly :: String -> IO (Diagram B)
+drawOnePoly s = do
+  res <- optimize Lexicographic . orthoPolyDrawing . map readTurn $ s
+  let poly = centerXY . strokeTrail . drawPoly $ res
+  return (lw thin . fc purple $ poly)
+  where
+    readTurn 'X' = L
+    readTurn 'V' = R
